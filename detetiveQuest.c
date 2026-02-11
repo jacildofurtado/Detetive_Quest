@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define TAMANHO_TABELA 10
+
 // Estrutura para representar um nó da arvore binária
 typedef struct Comodo { // Aqui a a escolha de usar "Comodo" em vez de "No" é para ficar mais relacionado ao tema do jogo de detetive, onde cada nó representa um cômodo da casa.
     char nome[50];
@@ -16,6 +18,105 @@ typedef struct PistaBST {
     struct PistaBST* esquerda;
     struct PistaBST* direita;
 } PistaBST;
+
+// Estrutura para a tabela hash com os a associação de pistas(chave) aos suspeios(valor)
+typedef struct{
+    char pista[30];
+    char suspeito[30];
+    int ocupado; // 0 para vazio, 1 para ocupado
+} TabelaSuspeitos;
+
+// Tabela hash para associar pistas a suspeitos
+TabelaSuspeitos tabela_suspeitos[TAMANHO_TABELA];
+
+// Função de hash simples para as pistas
+int funcaoHash(const char* chave) {
+    int soma = 0;
+    for(int i = 0; chave[i] != '\0'; i++) {
+        soma += chave[i];
+    }
+    return soma % TAMANHO_TABELA;
+}
+
+// Função para inserir uma associação pista-suspeito na tabela hash
+void inserirTabelaSuspeitos(const char* pista, const char* suspeito) {
+    int indice = funcaoHash(pista);
+
+    for(int i = 0; i < TAMANHO_TABELA; i++) {
+        int pos = (indice + i) % TAMANHO_TABELA; // Sondagem linear
+        if(tabela_suspeitos[pos].ocupado == 0) {
+            strcpy(tabela_suspeitos[pos].pista, pista);
+            strcpy(tabela_suspeitos[pos].suspeito, suspeito);
+            tabela_suspeitos[pos].ocupado = 1; // Marca como ocupado
+            return;
+        }
+    }
+}
+
+// Função para encontrar o suspeito associado a uma pista
+const char* encontrarSuspeito(const char* pista) {
+    int indice = funcaoHash(pista);
+
+    for(int i = 0; i < TAMANHO_TABELA; i++) {
+        int pos = (indice + i) % TAMANHO_TABELA; // Sondagem linear
+        if(tabela_suspeitos[pos].ocupado == 0) {
+            return "Nenhum suspeito encontrado"; // Não encontrado
+        }
+        if(strcmp(tabela_suspeitos[pos].pista, pista) == 0 && tabela_suspeitos[pos].ocupado == 1) {
+            return tabela_suspeitos[pos].suspeito; // Suspeito encontrado
+        }
+    }
+
+    return "Nenhum suspeito encontrado"; // Não encontrado
+}
+
+// Função para buscar uma pista na BST de pistas encontradas
+int buscarPista(PistaBST* raiz, const char* pista) {
+    if (raiz == NULL) {
+        return 0; // Não encontrada
+    }
+
+    int comparacao = strcmp(pista, raiz->pista);
+
+    // Verifica se a pista foi encontrada
+    if (comparacao == 0) {
+        return 1; // Encontrada
+    }
+    else if (comparacao < 0) { // Pista é menor, busca na subárvore esquerda
+        return buscarPista(raiz->esquerda, pista);
+    }
+    else { // Pista é maior, busca na subárvore direita
+        return buscarPista(raiz->direita, pista);
+    }
+}
+
+
+// Função para verificar o suspeito final com base na indicação do jogador
+void verificarSuspeitoFinal(PistaBST* pistasEncontradas, const char* indicacao) {
+
+    int contagemDeAssociacoes = 0;
+
+    // Este loop percorre a tabela hash de suspeitos para contar quantas pistas associadas ao suspeito indicado foram encontradas pelo jogador. Se o número de associações for 2 ou mais, o jogador acerta o culpado, caso contrário, erra.
+    for(int i = 0; i < TAMANHO_TABELA; i++) {
+
+        // Verifica se a posição da tabela está ocupada e se o suspeito associado à pista é igual à indicação do jogador, se sim, verifica se a pista associada a esse suspeito foi encontrada pelo jogador. Se a pista foi encontrada, incrementa a contagem de associações.
+        if(tabela_suspeitos[i].ocupado == 1 &&
+           strcmp(tabela_suspeitos[i].suspeito, indicacao) == 0) {
+
+            // Verifica se a pista associada foi realmente coletada pelo jogador chamando a função de busca na BST de pistas encontradas. Se a pista foi encontrada, incrementa a contagem de associações.
+            if(buscarPista(pistasEncontradas, tabela_suspeitos[i].pista)) {
+                contagemDeAssociacoes++;
+            }
+        }
+    }
+
+    if(contagemDeAssociacoes >= 2) {
+        printf("\nParabens! Voce acertou, o culpado e: %s\n", indicacao);
+    } else {
+        printf("\nResposta incorreta. O culpado nao e: %s\n", indicacao);
+    }
+}
+
 
 // Função para criar um novo nó (cômodo)
 Comodo* criarSala(const char* nome, const char* pista) {
@@ -122,7 +223,7 @@ void explorarSalas(Comodo* raiz, PistaBST** pistaRaiz) { // O uso de um ponteiro
                 // Verifica se há uma pista nesse comodo, se sim, insere na BST de pistas
                 if(atual->pista[0] != '\0') {
                     *pistaRaiz = inserirPista(*pistaRaiz, atual->pista);
-                    printf("\nVoce encontrou uma pista: %s\n", atual->pista);
+                    printf("\nVoce encontrou uma pista: %s\nSuspeito relacionado a esta pista: %s\n", atual->pista, encontrarSuspeito(atual->pista));
                 }
 
                 break;
@@ -139,7 +240,7 @@ void explorarSalas(Comodo* raiz, PistaBST** pistaRaiz) { // O uso de um ponteiro
                 // Verifica se há uma pista nesse comodo, se sim, insere na BST de pistas
                 if(atual->pista[0] != '\0') {
                     *pistaRaiz = inserirPista(*pistaRaiz, atual->pista);
-                    printf("\nVoce encontrou uma pista: %s\n", atual->pista);
+                    printf("\nVoce encontrou uma pista: %s\nSuspeito relacionado a esta pista: %s\n", atual->pista, encontrarSuspeito(atual->pista));
                 }
 
                 break;
@@ -162,23 +263,45 @@ int main() {
     Comodo* raiz = criarSala("Hall de Entrada", "\0"); // Criando o nó raiz da árvore, que representa o hall de entrada da casa
     PistaBST* pistaRaiz = NULL; // Raiz da BST de pistas
 
+    // Construindo a árvore binária representando os cômodos da casa
     raiz->esquerdo = criarSala("Sala de Estar", "\0"); // Criando o nó esquerdo da raiz, que representa a sala de estar
     raiz->esquerdo->direito = criarSala("Cozinha", "Pegadas de lama"); // Criando o nó direito do nó "Sala de Estar", que representa a cozinha
     raiz->esquerdo->esquerdo = criarSala("Quarto", "Lencol de cama com sangue"); // Criando o nó esquerdo do nó "Sala de Estar", que representa o quarto
-    raiz->esquerdo->esquerdo->esquerdo = criarSala("Banheiro", "Palavra 'Assassino' escrita na parede"); // Criando o nó esquerdo do nó "Quarto", que representa o banheiro
+    raiz->esquerdo->esquerdo->esquerdo = criarSala("Banheiro", "\0"); // Criando o nó esquerdo do nó "Quarto", que representa o banheiro
     raiz->direito = criarSala("Biblioteca", "Livro com pagina arrancada"); // Criando o nó direito da raiz, que representa a biblioteca
     raiz->direito->esquerdo = criarSala("Escritorio", "\0"); // Criando o nó esquerdo do nó "Biblioteca", que representa o escritório
-    raiz->direito->direito = criarSala("Jardim", "\0"); // Criando o nó direito do nó "Biblioteca", que representa o jardim
-    raiz->direito->direito->esquerdo = criarSala("Garagem", "Chave perdida"); // Criando o nó esquerdo do nó "Jardim", que representa a garagem
-    
+    raiz->direito->direito = criarSala("Jardim", "Buraco aberto recentemente"); // Criando o nó direito do nó "Biblioteca", que representa o jardim
+    raiz->direito->direito->esquerdo = criarSala("Garagem", "Faca suja de sangue"); // Criando o nó esquerdo do nó "Jardim", que representa a garagem
+
+    // Inserindo as associações de pistas e suspeitos na tabela hash
+    inserirTabelaSuspeitos("Pegadas de lama", "Jardineiro");
+    inserirTabelaSuspeitos("Lencol de cama com sangue", "Empregada");
+    inserirTabelaSuspeitos("Livro com pagina arrancada", "Bibliotecario");
+    inserirTabelaSuspeitos("Buraco aberto recentemente", "Jardineiro");
+    inserirTabelaSuspeitos("Faca suja de sangue", "Cozinheiro");
 
     printf("Bem-vindo ao Detetive Quest!\n");
     
     explorarSalas(raiz, &pistaRaiz); // Inicia a exploração dos cômodos da casa
 
+    printf("\nCom base nas pistas encontradas, quem voce acha que e o culpado? ");
+    printf("Lista de suspeitos:\n");
+    printf(" Jardineiro\n");
+    printf(" Empregada\n");
+    printf(" Bibliotecario\n");
+    printf(" Cozinheiro\n");
+    printf("Indique um suspeito para o crime: ");
+
+    char indicacao[30];
+
+    fgets(indicacao, sizeof(indicacao), stdin);
+    indicacao[strcspn(indicacao, "\n")] = '\0'; // Remove o caractere de nova linha lido pelo fgets
+
+    verificarSuspeitoFinal(pistaRaiz, indicacao); // Função para verificar se a indicação do jogador é correta.
+
     liberar(raiz);
     liberarPistas(pistaRaiz);
 
-
+    
     return 0;
 }
